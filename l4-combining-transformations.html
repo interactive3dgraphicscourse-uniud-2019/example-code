@@ -47,13 +47,13 @@
 			var cylinder_material = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
 			cylinder = new THREE.Mesh( cylinder_geometry, cylinder_material );
 			cylinder.position.set( 0, 2 ,0);
-			sphere.add(cylinder);
+			scene.add(cylinder);
 
 
 /////////////// your code goes here
 
-
-
+			
+			
 
 
 			stats = new Stats();
@@ -66,6 +66,8 @@
 		}
 
 			function Update() {
+
+				cylinder.rotation.z += 0.1 * Math.PI/180;
 
 				requestAnimationFrame(Update);
 
