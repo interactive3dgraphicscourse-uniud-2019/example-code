@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>three.js webgl - normal mapping</title>
+		<title>three.js webgl - shading with AO map</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 		<style>
@@ -34,7 +34,7 @@
 	<body>
 
 		<div id="info">
-			<a href="https://github.com/robertoranon/int3D" target="_blank">Interactive 3D Graphics 2017 code</a> - normal mapping<br />
+			<a href="https://github.com/robertoranon/int3D" target="_blank">Interactive 3D Graphics 2017 code</a> - shading with AO maps<br />
 		</div>
 		<script src="libs/three.js"></script>
 		<script src="libs/stats.min.js"></script>
@@ -76,10 +76,12 @@
 			varying vec2 vUv;
 			uniform vec3 pointLightPosition; // in world space
 			uniform vec3 clight;
+			uniform vec3 ambientLight;
 			uniform vec3 cspec;
 			uniform vec3 cdiff;
 			uniform float roughness;
 			uniform sampler2D normalMap;
+			uniform sampler2D aoMap;
 			uniform vec2 normalScale;
 			const float PI = 3.14159;
 
@@ -102,6 +104,7 @@
 					return G1(nDotl,k)*G1(nDotv,k);
 			}
 
+		
 
 			void main() {
 				vec4 lPosition = viewMatrix * vec4( pointLightPosition, 1.0 );
@@ -124,7 +127,7 @@
 				vec3 fresnel = FSchlick(lDoth);
 				vec3 BRDF = (vec3(1.0)-fresnel)*cdiff/PI + fresnel*GSmith(nDotv,nDotl)*DGGX(nDoth,roughness*roughness)/
 					(4.0*nDotl*nDotv);
-				vec3 outRadiance = PI* clight * nDotl * BRDF;
+				vec3 outRadiance = PI* clight * nDotl * BRDF + ambientLight*cdiff*texture2D( aoMap, vUv ).xyz;
 				// gamma encode the final value
 				gl_FragColor = vec4(pow( outRadiance, vec3(1.0/2.2)), 1.0);
 			}
@@ -147,20 +150,30 @@
 				intensity: 1.0,
 			}
 
+			var ambientLightParameters = {
+				red: 0.2,
+				green: 0.2,
+				blue: 0.2,
+				intensity: 1.0,
+			}
+
 			var textureParameters = {
 				normalScale: 0.0,
 			}
 
 			var normalMap = loadTexture( "textures/normal.jpg" );
+			var aoMap = loadTexture("textures/ao.jpg");
 
 			var uniforms = {
 				    cspec:	{ type: "v3", value: new THREE.Vector3(0.04,0.04,0.04) },
-				    cdiff:	{ type: "v3", value: new THREE.Vector3(0.7,0,0) },
+				    cdiff:	{ type: "v3", value: new THREE.Vector3(0.8,0.8,0.8) },
 				    roughness: {type: "f", value: 0.2},
-					normalMap:	{ type: "t", value: normalMap},
-					normalScale: {type: "v2", value: new THREE.Vector2(1,1)},
-					pointLightPosition:	{ type: "v3", value: new THREE.Vector3() },
-					clight:	{ type: "v3", value: new THREE.Vector3() },
+					  normalMap:	{ type: "t", value: normalMap},
+						aoMap:	{ type: "t", value: aoMap},
+						normalScale: {type: "v2", value: new THREE.Vector2(1,1)},
+						pointLightPosition:	{ type: "v3", value: new THREE.Vector3() },
+						clight:	{ type: "v3", value: new THREE.Vector3() },
+						ambientLight:	{ type: "v3", value: new THREE.Vector3() },
 					};
 
 			vs = document.getElementById("vertex").textContent;
@@ -169,13 +182,11 @@
 			var ourMaterial = new THREE.ShaderMaterial({ uniforms: uniforms, vertexShader: vs, fragmentShader: fs });
 			ourMaterial.vertexTangents = true;
 			ourMaterial.needsUpdate = true;
-			console.log(ourMaterial);
+			
 
 			var loader = new THREE.OBJLoader2();
 			loader.useIndices = true;
 				loader.load( "models/ninjaHead_Low.obj", function ( obj ) {
-					console.log(obj);
-					//geometry = gltf.scene.children[ 0 ].children[0].geometry;
 					geometry = obj.detail.loaderRootNode.children[0].geometry;
 					geometry.center();
 					mesh = new THREE.Mesh( geometry, ourMaterial );
@@ -185,7 +196,7 @@
 				} );
 
 			var lightMesh = new THREE.Mesh( new THREE.SphereGeometry( 1, 16, 16),
-			new THREE.MeshBasicMaterial ({color: 0xffff00, wireframe:true}));
+				new THREE.MeshBasicMaterial ({color: 0xffff00, wireframe:true}));
 			lightMesh.position.set( 7.0, 7.0, 7.0 );
 			uniforms.pointLightPosition.value = new THREE.Vector3(lightMesh.position.x,
 																														lightMesh.position.y,
@@ -219,7 +230,6 @@
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
 
-				//controls.addEventListener( 'change', render );
 				controls.minDistance = 1;
 				controls.maxDistance = 100;
 				controls.enablePan = false;
@@ -227,11 +237,11 @@
 
 				window.addEventListener( 'resize', onResize, false );
 
-			  	stats.domElement.style.position = 'absolute';
-			  	stats.domElement.style.top = '0px';
-			  	document.body.appendChild( stats.domElement );
+			  stats.domElement.style.position = 'absolute';
+			  stats.domElement.style.top = '0px';
+			  document.body.appendChild( stats.domElement );
 
-				
+				ourMaterial.needsUpdate = true;
 
 			}
 
@@ -272,17 +282,29 @@
 				lightSettings.add(lightParameters,'blue').min(0).max(1).onChange( function(newVal) { render() });
 				lightSettings.add(lightParameters,'intensity').min(0).max(10000).onChange( function(newVal) { render() });
 
+				ambientLightSettings = gui.addFolder('Ambient Light Parameters');
+				ambientLightSettings.add(ambientLightParameters,'red').min(0).max(1).onChange( function(newVal) { render() });
+				ambientLightSettings.add(ambientLightParameters,'green').min(0).max(1).onChange( function(newVal) { render() });
+				ambientLightSettings.add(ambientLightParameters,'blue').min(0).max(1).onChange( function(newVal) { render() });
+				ambientLightSettings.add(ambientLightParameters,'intensity').min(0).max(100).onChange( function(newVal) { render() });
+
+
 				textureSettings = gui.addFolder('Texture parameters');
 				textureSettings.add(textureParameters,'normalScale').min(-3).max(3).onChange( function( newVal ) {render()});
 				}
 
 			function updateUniforms() {
 
-							uniforms.clight.value = new THREE.Vector3(
+					uniforms.clight.value = new THREE.Vector3(
 							lightParameters.red * lightParameters.intensity,
 					    lightParameters.green * lightParameters.intensity,
 							lightParameters.blue * lightParameters.intensity);
-							uniforms.normalScale.value = new THREE.Vector2( textureParameters.normalScale, textureParameters.normalScale );
+					uniforms.ambientLight.value = new THREE.Vector3(
+							ambientLightParameters.red * ambientLightParameters.intensity,
+							ambientLightParameters.green * ambientLightParameters.intensity,
+							ambientLightParameters.blue * ambientLightParameters.intensity);
+
+					uniforms.normalScale.value = new THREE.Vector2( textureParameters.normalScale, textureParameters.normalScale );
 
 			}
 
