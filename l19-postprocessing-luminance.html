@@ -154,9 +154,9 @@
 			  stats.domElement.style.top = '0px';
 			  document.body.appendChild( stats.domElement );
 
-				composer = new THREE.EffectComposer( renderer );
-				composer.addPass( new THREE.RenderPass( scene, camera ) );
-				greyScaleEffect = new THREE.ShaderPass( LuminanceShader );
+			  composer = new THREE.EffectComposer( renderer );
+			  composer.addPass( new THREE.RenderPass( scene, camera ) );
+			  greyScaleEffect = new THREE.ShaderPass( LuminanceShader );
 				composer.addPass( greyScaleEffect );
 				passthrough = new THREE.ShaderPass( THREE.GammaCorrectionShader);
 				passthrough.renderToScreen = true;
